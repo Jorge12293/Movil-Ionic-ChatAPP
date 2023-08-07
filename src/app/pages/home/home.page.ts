@@ -1,8 +1,8 @@
+import { ChatService } from './../../services/chat/chat.service';
 import { Component, OnInit, ViewChild } from '@angular/core';
-import { Router } from '@angular/router';
-import { PopoverController } from '@ionic/angular';
-import { ModalController } from '@ionic/angular';
-import { Observable } from 'rxjs';
+import { NavigationExtras, Router } from '@angular/router';
+import { ModalController, PopoverController } from '@ionic/angular';
+import { Observable, take } from 'rxjs';
 
 @Component({
   selector: 'app-home',
@@ -10,53 +10,105 @@ import { Observable } from 'rxjs';
   styleUrls: ['./home.page.scss'],
 })
 export class HomePage implements OnInit {
-  
-  @ViewChild("new_chat") modal: ModalController;
-  @ViewChild("popover") popover: PopoverController;
 
-
-  segment = "chats";
+  @ViewChild('new_chat') modal: ModalController;
+  @ViewChild('popover') popover: PopoverController;
+  segment = 'chats';
   open_new_chat = false;
-  users = [
-    {id:1, name:'Nikhil', photo: 'https://i.pravatar.cc/315'},
-    {id:2, name:'Sala', photo: 'https://i.pravatar.cc/325'}
-  ];
-  chatRooms = [
-    {id:1, name:'Nikhil', photo: 'https://i.pravatar.cc/315'},
-    {id:2, name:'Sala', photo: 'https://i.pravatar.cc/325'}
-  ];
+  users: Observable<any[]>;
+  chatRooms: Observable<any[]>;
+  model = {
+    icon: 'chatbubbles-outline',
+    title: 'No Chat Rooms',
+    color: 'danger'
+  };
 
   constructor(
-    private router:Router
+    private router: Router,
+    private chatService: ChatService
   ) { }
 
   ngOnInit() {
+    this.getRooms();
   }
 
-  logout(){
-    this.popover.dismiss();
+  getRooms() {
+    // this.chatService.getId();
+    this.chatService.getChatRooms();
+    this.chatRooms = this.chatService.chatRooms;
+    console.log('chatrooms: ', this.chatRooms);
   }
 
-  onSegmentChanged(event:any){ 
-    console.log(this.segment);
+  async logout() {
+    try {
+      console.log('logout');
+      this.popover.dismiss();
+      await this.chatService.auth.logout();
+      // this.chatService.currentUserId = null;
+      this.router.navigateByUrl('/login', {replaceUrl: true});
+    } catch(e) {
+      console.log(e);
+    }
   }
 
-  newChat(){
-    this.open_new_chat= true;
+  onSegmentChanged(event: any) {
+    console.log(event);
+    this.segment = event.detail.value;
   }
 
-  onWillDismiss(event:any){}
+  newChat() {
+    this.open_new_chat = true;
+    if(!this.users) this.getUsers();
+  }
 
-  cancel(){
+  getUsers() {
+    this.chatService.getUsers();
+    this.users = this.chatService.users;
+  }
+
+  onWillDismiss(event: any) {}
+
+  cancel() {
     this.modal.dismiss();
-    this.open_new_chat=false;
+    this.open_new_chat = false;
   }
 
-  startChart(item:any){
-    console.log(item);
+  async startChat(item) {
+    try {
+      // this.global.showLoader();
+      // create chatroom
+      const room = await this.chatService.createChatRoom(item?.uid);
+      console.log('room: ', room);
+      this.cancel();
+      const navData: NavigationExtras = {
+        queryParams: {
+          name: item?.name
+        }
+      };
+      this.router.navigate(['/', 'home', 'chats', room?.id], navData);
+      // this.global.hideLoader();
+    } catch(e) {
+      console.log(e);
+      // this.global.hideLoader();
+    }
   }
 
-  getChat(item:any){
-    this.router.navigate(['/','home','chats',item?.id])
+  getChat(item) {
+    (item?.user).pipe(
+      take(1)
+    ).subscribe(user_data => {
+      console.log('data: ', user_data);
+      const navData: NavigationExtras = {
+        queryParams: {
+          name: user_data?.name
+        }
+      };
+      this.router.navigate(['/', 'home', 'chats', item?.id], navData);
+    });
   }
+
+  getUser(user: any) {
+    return user;
+  }
+
 }
